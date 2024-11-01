@@ -4,6 +4,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from app.api.deps import email_verified_user_permission
 from app.db.session import get_db
 from app.db.schemas import UserDB
+from app.utils.aws_clients import get_s3_client, get_sagemaker_runtime
 from app.utils.stt_helpers import ALLOWED_CONTENT_TYPES, invoke_stt_endpoint, generate_unique_key, hash_unique_key, save_transcription_to_s3
 
 router = APIRouter()
@@ -14,10 +15,10 @@ async def generate_api_key(
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
     # Generate a new API key
-    api_key = generate_unique_key(email=current_user.email)
+    api_key = await generate_unique_key(email=current_user.email)
 
     # Hash the API key before storing it
-    hashed_api_key = hash_unique_key(api_key)
+    hashed_api_key = await hash_unique_key(api_key)
 
     # Store the hashed API key in the database for the user
     await db["users"].update_one(
@@ -31,41 +32,32 @@ async def generate_api_key(
 async def transcribe_audio(
     file: UploadFile = File(...),
     api_key: str = Header(None, alias="x-api-key"),
-    db: AsyncIOMotorDatabase = Depends(get_db)
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    sagemaker_runtime=Depends(get_sagemaker_runtime),
+    s3_client=Depends(get_s3_client)
 ):
-    # Check that the content type of the file is allowed
-    content_type = file.content_type
-    if content_type not in ALLOWED_CONTENT_TYPES:
+    # Check file content type
+    if file.content_type not in ALLOWED_CONTENT_TYPES:
         raise HTTPException(status_code=400, detail="Unsupported file format. Only mp3, wav, and webm are allowed.")
     
-    # Hash the provided API key
-    hashed_api_key = hash_unique_key(api_key)
-
-    # Retrieve the user by the hashed API key
+    # Verify API key and get user
+    hashed_api_key = await hash_unique_key(api_key)
     user_in_db = await db["users"].find_one({"api_key": hashed_api_key})
     
     if not user_in_db:
         raise HTTPException(status_code=401, detail="Invalid API key")
     
-    # Read the file content
-    file_bytes = await file.read()
-
     if user_in_db["balance"] <= 0:
         raise HTTPException(status_code=400, detail="Insufficient balance. Please refill.")
     
-    # Convert audio file to base64 for API call
-    wav_bs64 = base64.b64encode(file_bytes).decode("utf-8")
-    
-    # Call the transcription endpoint
+    # Pass the file to the SageMaker endpoint and handle any exceptions
     try:
-        transcription_result = invoke_stt_endpoint(wav_bs64)
+        transcription_result = await invoke_stt_endpoint(file, sagemaker_runtime)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Transcription service failed: {str(e)}")
     
-    # Extract duration from the result (assuming the transcription result contains duration in seconds)
+    # Update user's transcription duration and balance in the database
     transcription_duration_seconds = transcription_result.get("duration", 1)
-    
-    # Update the user's total transcription time and balance in the database
     await db["users"].update_one(
         {"email": user_in_db["email"]},
         {
@@ -75,8 +67,10 @@ async def transcribe_audio(
             }
         }
     )
-    
-    transcription_result = transcription_result.get("prediction", "").strip()
-    save_transcription_to_s3(file_bytes, content_type, transcription_result, user_in_db["email"])
 
-    return {"transcription": transcription_result}
+    transcription_result_text = transcription_result.get("prediction", "").strip()
+
+    # Save transcription and audio to S3
+    # await save_transcription_to_s3(file, transcription_result_text, user_in_db["email"], s3_client)
+
+    return {"transcription": transcription_result_text}

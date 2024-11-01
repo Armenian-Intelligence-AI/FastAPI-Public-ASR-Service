@@ -18,5 +18,6 @@ class Settings:
     SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD")
     SMTP_SERVER: str = os.getenv("SMTP_SERVER")
     SMTP_PORT: int = int(os.getenv("SMTP_PORT", 587))
+    ENV: str = os.getenv("ENV", "PROD")
 
 settings = Settings()

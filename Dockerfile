@@ -12,7 +12,8 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     build-essential \
     libpq-dev \
-    supervisor
+    supervisor \ 
+    coreutils
 
 # Install Python dependencies
 COPY requirements.txt .
@@ -23,6 +24,9 @@ COPY . .
 
 # Copy Supervisor configuration file
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+COPY start_uvicorn.sh /app/start_uvicorn.sh
+RUN chmod +x /app/start_uvicorn.sh
 
 # Expose the FastAPI port
 EXPOSE 8000
