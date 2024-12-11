@@ -40,37 +40,6 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     refresh_token = await create_refresh_token(data={"sub": user["email"]}, token_version=user['token_version'])
     return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer"}
 
-@router.post("/test-hash")
-async def test_hash(password: str):
-    try:
-        # Hash the password
-        hashed_password = await get_password_hash(password)
-        
-        # Verify the password against the hash
-        is_verified = await verify_password(password, hashed_password)
-        
-        return {
-            "hashed_password": hashed_password,
-            "is_verified": is_verified
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    
-@router.get("/test-token")
-async def test_token():
-    # Sample data to encode
-    data = {"sub": "test@example.com"}
-    token_version = 1
-
-    # Create access and refresh tokens
-    access_token = await create_access_token(data=data, token_version=token_version)
-    refresh_token = await create_refresh_token(data=data, token_version=token_version)
-
-    return {
-        "access_token": access_token,
-        "refresh_token": refresh_token
-    }
-
 @router.post("/token/refresh", response_model=dict)
 async def refresh_access_token(refresh_token_request: RefreshTokenRequest, db: AsyncIOMotorDatabase = Depends(get_db)):
     refresh_token = refresh_token_request.refresh_token
