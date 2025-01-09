@@ -17,6 +17,7 @@ RUN apt-get update && apt-get install -y \
 
 # Install Python dependencies
 COPY requirements.txt .
+RUN pip3 install pyannote.audio==3.1.1 -c constraints.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the application code

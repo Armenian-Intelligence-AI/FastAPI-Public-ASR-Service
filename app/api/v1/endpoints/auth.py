@@ -157,7 +157,7 @@ async def request_password_reset(email: str, db: AsyncIOMotorDatabase = Depends(
             )
 
     # Generate a new OTP for password reset
-    otp = await generate_otp()
+    otp, otp_expires_at, last_otp_sent_at = await generate_otp()
     otp_expires_at = current_time + datetime.timedelta(minutes=5)
 
     # Update the user record with the OTP, expiration time, and when the OTP was last sent

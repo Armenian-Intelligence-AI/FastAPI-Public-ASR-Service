@@ -1,4 +1,4 @@
-import base64
+from io import BytesIO
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Header
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from app.api.deps import email_verified_user_permission
@@ -6,6 +6,7 @@ from app.db.session import get_db
 from app.db.schemas import UserDB
 from app.utils.aws_clients import get_s3_client, get_sagemaker_runtime
 from app.utils.stt_helpers import ALLOWED_CONTENT_TYPES, invoke_stt_endpoint, generate_unique_key, hash_unique_key, save_transcription_to_s3
+from app.utils.preprocessor import run_voice_activity_detector
 
 router = APIRouter()
 
@@ -52,6 +53,12 @@ async def transcribe_audio(
     
     # Pass the file to the SageMaker endpoint and handle any exceptions
     try:
+        audio_bytes = await file.read()
+        audio_file = BytesIO(audio_bytes)
+        is_speech = run_voice_activity_detector(audio_file)        
+        if not is_speech:
+            return {'prediction': '', 'duration': 0, 'is_speech': False}
+
         transcription_result = await invoke_stt_endpoint(file, sagemaker_runtime)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Transcription service failed: {str(e)}")
@@ -71,6 +78,6 @@ async def transcribe_audio(
     transcription_result_text = transcription_result.get("prediction", "").strip()
 
     # Save transcription and audio to S3
-    # await save_transcription_to_s3(file, transcription_result_text, user_in_db["email"], s3_client)
+    await save_transcription_to_s3(file, transcription_result_text, user_in_db["email"], s3_client)
 
     return {"transcription": transcription_result_text}

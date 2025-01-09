@@ -2,8 +2,6 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv(override=True)
-
 class Settings:
     PROJECT_NAME: str = "STT_FastBank"
     ALGORITHM: str = "HS256"
@@ -21,3 +19,6 @@ class Settings:
     ENV: str = os.getenv("ENV", "PROD")
 
 settings = Settings()
+
+if settings.ENV == "DEV":
+    load_dotenv(override=True)
