@@ -13,7 +13,8 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     libpq-dev \
     supervisor \ 
-    coreutils
+    coreutils \
+    ffmpeg
 
 # Install Python dependencies
 COPY requirements.txt .
