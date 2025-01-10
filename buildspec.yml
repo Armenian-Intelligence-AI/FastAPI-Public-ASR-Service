@@ -16,5 +16,6 @@ phases:
 artifacts:
   files:
     - Dockerrun.aws.json
-    - .platform/**
-    - .ebextensions/**
+    - .platform/**/*
+    - .ebextensions/**/*
+  discard-paths: no
